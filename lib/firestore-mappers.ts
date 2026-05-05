@@ -36,8 +36,8 @@ export function sessionFromDoc(doc: DocumentSnapshot): Session | null {
   if (!data) return null;
   const selected: SelectedFile[] = Array.isArray(data.selectedFiles)
     ? data.selectedFiles.map((f: unknown) => {
-        const obj = (f as { id?: string; name?: string }) ?? {};
-        return { id: obj.id ?? '', name: obj.name ?? '' };
+        const obj = (f as { id?: string; name?: string; note?: string }) ?? {};
+        return { id: obj.id ?? '', name: obj.name ?? '', ...(obj.note ? { note: obj.note } : {}) };
       })
     : [];
   return {
@@ -69,8 +69,12 @@ export function submissionFromDoc(doc: DocumentSnapshot): Submission | null {
   if (!data) return null;
   const selected: SelectedFile[] = Array.isArray(data.selectedFiles)
     ? data.selectedFiles.map((f: unknown) => {
-        const obj = (f as { id?: string; name?: string }) ?? {};
-        return { id: obj.id ?? '', name: obj.name ?? '' };
+        const obj = (f as { id?: string; name?: string; note?: string }) ?? {};
+        return {
+          id: obj.id ?? '',
+          name: obj.name ?? '',
+          ...(obj.note ? { note: obj.note } : {}),
+        };
       })
     : [];
   return {

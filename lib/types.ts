@@ -17,6 +17,7 @@ export interface DriveImage {
 export interface SelectedFile {
   id: string;
   name: string;
+  note?: string;
 }
 
 export interface Session {

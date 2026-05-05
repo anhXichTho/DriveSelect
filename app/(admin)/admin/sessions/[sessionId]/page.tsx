@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, FolderOpen, Loader2, User } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, FolderOpen, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/AuthGuard';
 import { AdminNav } from '@/components/AdminNav';
@@ -15,7 +15,28 @@ import type { Folder, Session, Submission } from '@/lib/types';
 
 type SessionApi = Omit<Session, 'createdAt' | 'completedAt'> & { createdAt: string; completedAt: string | null };
 type FolderApi = Omit<Folder, 'createdAt'> & { createdAt: string };
-type SubmissionApi = Omit<Submission, 'createdAt'> & { createdAt: string };
+type SubmissionApi = Omit<Submission, 'createdAt' | 'updatedAt'> & { createdAt: string; updatedAt: string | null };
+
+async function downloadZip(files: Submission['selectedFiles'], submitterName: string) {
+  const res = await fetch('/api/download/zip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      files,
+      zipName: `anh-${submitterName.replace(/\s+/g, '-')}`,
+    }),
+  });
+  if (!res.ok) throw new Error('Tạo ZIP thất bại');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `anh-${submitterName}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export default function SessionDetailPage({ params }: { params: { sessionId: string } }) {
   const { token } = useAuth();
@@ -24,6 +45,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appUrl, setAppUrl] = useState('');
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   useEffect(() => { setAppUrl(window.location.origin); }, []);
 
@@ -47,7 +69,7 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
           setFolder({ ...f, createdAt: new Date(f.createdAt) });
         }
         const subs: SubmissionApi[] = subData.submissions ?? [];
-        setSubmissions(subs.map((sub) => ({ ...sub, createdAt: new Date(sub.createdAt) })));
+        setSubmissions(subs.map((sub) => ({ ...sub, createdAt: new Date(sub.createdAt), updatedAt: sub.updatedAt ? new Date(sub.updatedAt) : null })));
       })
       .catch((e) => { if (!cancelled) { setError(e.message); toast.error(e.message); } });
     return () => { cancelled = true; };
@@ -121,33 +143,57 @@ export default function SessionDetailPage({ params }: { params: { sessionId: str
                   <Card key={sub.id}>
                     <CardContent className="p-4 sm:p-5">
                       <div className="mb-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-sm font-semibold">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-sm font-semibold">
                             {sub.submitterName.charAt(0).toUpperCase()}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <User className="h-3.5 w-3.5 text-muted-foreground" />
                               <span className="font-semibold text-sm">{sub.submitterName}</span>
                             </div>
-                            <div className="text-xs text-muted-foreground">{formatDateTime(sub.createdAt)} · {sub.selectedFiles.length} ảnh</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDateTime(sub.createdAt)} · {sub.selectedFiles.length} ảnh
+                              {sub.updatedAt && <span className="ml-1 text-amber-600">· Sửa {formatDateTime(sub.updatedAt)}</span>}
+                            </div>
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          disabled={downloading === sub.id}
+                          onClick={async () => {
+                            setDownloading(sub.id);
+                            try { await downloadZip(sub.selectedFiles, sub.submitterName); }
+                            catch (e) { toast.error(e instanceof Error ? e.message : 'Tải thất bại'); }
+                            finally { setDownloading(null); }
+                          }}
+                          className="shrink-0 flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {downloading === sub.id ? 'Đang tải…' : 'Tải ZIP'}
+                        </button>
                       </div>
                       <ul className="divide-y divide-border rounded-lg border border-border">
                         {sub.selectedFiles.map((f, i) => (
-                          <li key={f.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-xs text-muted-foreground shrink-0">{i + 1}.</span>
-                              <span className="truncate text-sm">{f.name}</span>
+                          <li key={f.id} className="px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs text-muted-foreground shrink-0">{i + 1}.</span>
+                                <span className="truncate text-sm">{f.name}</span>
+                              </div>
+                              <a
+                                href={`https://drive.google.com/file/d/${f.id}/view`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="shrink-0 text-xs text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+                              >
+                                Drive <ExternalLink className="h-3 w-3" />
+                              </a>
                             </div>
-                            <a
-                              href={`https://drive.google.com/file/d/${f.id}/view`}
-                              target="_blank" rel="noopener noreferrer"
-                              className="shrink-0 text-xs text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
-                            >
-                              Drive <ExternalLink className="h-3 w-3" />
-                            </a>
+                            {f.note && (
+                              <p className="mt-1 ml-5 rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
+                                💬 {f.note}
+                              </p>
+                            )}
                           </li>
                         ))}
                       </ul>

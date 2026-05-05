@@ -34,6 +34,7 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [isReturning, setIsReturning] = useState(false);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [showOnlySelected, setShowOnlySelected] = useState(false);
 
   const title = label || folderName;
@@ -122,10 +123,12 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || 'Gửi không thành công');
       }
+      const data = await res.json();
       const files = images
         .filter((img) => selectedIds.has(img.id))
         .map((img) => ({ id: img.id, name: img.name }));
       setSubmittedFiles(files);
+      setSubmissionId(data.submission?.id ?? null);
       setStep('done');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Có lỗi xảy ra');
@@ -134,13 +137,20 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
     }
   };
 
-  if (step === 'done') return <ThankYou name={submitterName} files={submittedFiles} onAgain={() => {
-    setSelectedIds(new Set());
-    setSubmittedFiles([]);
-    setStep('name');
-    setSubmitterName('');
-    setIsReturning(false);
-  }} />;
+  if (step === 'done') return <ThankYou
+    name={submitterName}
+    files={submittedFiles}
+    sessionId={sessionId}
+    submissionId={submissionId}
+    onAgain={() => {
+      setSelectedIds(new Set());
+      setSubmittedFiles([]);
+      setStep('name');
+      setSubmitterName('');
+      setIsReturning(false);
+      setSubmissionId(null);
+    }}
+  />;
 
   if (step === 'name') return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted/20 p-6">
@@ -312,8 +322,19 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   );
 }
 
-function ThankYou({ name, files, onAgain }: { name: string; files: SelectedFile[]; onAgain: () => void }) {
+function ThankYou({
+  name, files, sessionId, submissionId, onAgain,
+}: {
+  name: string;
+  files: SelectedFile[];
+  sessionId: string;
+  submissionId: string | null;
+  onAgain: () => void;
+}) {
   const [downloading, setDownloading] = useState(false);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const downloadAll = async () => {
     if (downloading) return;
@@ -322,27 +343,47 @@ function ThankYou({ name, files, onAgain }: { name: string; files: SelectedFile[
       const res = await fetch('/api/download/zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          files,
-          zipName: `anh-da-chon-${name.replace(/\s+/g, '-')}`,
-        }),
+        body: JSON.stringify({ files, zipName: `anh-da-chon-${name.replace(/\s+/g, '-')}` }),
       });
       if (!res.ok) throw new Error('Tạo ZIP thất bại');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `anh-da-chon-${name}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      a.href = url; a.download = `anh-da-chon-${name}.zip`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Tải thất bại');
     } finally {
       setDownloading(false);
     }
   };
+
+  const saveNotes = async () => {
+    if (!submissionId || saving) return;
+    setSaving(true);
+    setSaved(false);
+    try {
+      const selectedFiles: SelectedFile[] = files.map((f) => ({
+        ...f,
+        ...(notes[f.id]?.trim() ? { note: notes[f.id].trim() } : { note: undefined }),
+      }));
+      const res = await fetch(`/api/sessions/${sessionId}/submissions/${submissionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedFiles }),
+      });
+      if (!res.ok) throw new Error('Lưu thất bại');
+      setSaved(true);
+      toast.success('Đã lưu yêu cầu chỉnh sửa');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Lưu thất bại');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasNotes = Object.values(notes).some((n) => n.trim());
 
   return (
     <div className="min-h-screen bg-muted/20 p-4 sm:p-6">
@@ -357,16 +398,11 @@ function ThankYou({ name, files, onAgain }: { name: string; files: SelectedFile[
           </p>
         </div>
 
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Ảnh đã chọn ({files.length})
           </h2>
-          <Button
-            size="sm"
-            onClick={downloadAll}
-            disabled={downloading}
-            className="shrink-0"
-          >
+          <Button size="sm" onClick={downloadAll} disabled={downloading} className="shrink-0">
             <Download className="h-4 w-4" />
             {downloading ? 'Đang tải…' : 'Tải tất cả'}
           </Button>
@@ -374,25 +410,48 @@ function ThankYou({ name, files, onAgain }: { name: string; files: SelectedFile[
 
         <div className="rounded-xl border border-border bg-white divide-y divide-border overflow-hidden">
           {files.map((f, i) => (
-            <div key={f.id} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="w-6 shrink-0 text-xs text-muted-foreground text-right">{i + 1}</span>
-              <span className="flex-1 truncate text-sm">{f.name}</span>
-              <a
-                href={`/api/download/${f.id}?name=${encodeURIComponent(f.name)}`}
-                download={f.name}
-                className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-brand-600 transition-colors"
-                title="Tải về"
-              >
-                <Download className="h-4 w-4" />
-              </a>
+            <div key={f.id} className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="w-6 shrink-0 text-xs text-muted-foreground text-right">{i + 1}</span>
+                <span className="flex-1 truncate text-sm font-medium">{f.name}</span>
+                <a
+                  href={`/api/download/${f.id}?name=${encodeURIComponent(f.name)}`}
+                  download={f.name}
+                  className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-brand-600 transition-colors"
+                  title="Tải về"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </div>
+              <div className="mt-2 pl-9">
+                <textarea
+                  rows={2}
+                  value={notes[f.id] ?? ''}
+                  onChange={(e) => { setNotes((prev) => ({ ...prev, [f.id]: e.target.value })); setSaved(false); }}
+                  placeholder="Yêu cầu chỉnh sửa cho ảnh này… (tùy chọn)"
+                  className="w-full resize-none rounded-md border border-border bg-muted/40 px-3 py-2 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                />
+              </div>
             </div>
           ))}
         </div>
 
+        {submissionId && (
+          <div className="mt-3 flex items-center justify-end gap-3">
+            {saved && <span className="text-xs text-emerald-600">Đã lưu</span>}
+            <Button
+              size="sm"
+              variant={hasNotes ? 'default' : 'outline'}
+              onClick={saveNotes}
+              disabled={saving}
+            >
+              {saving ? 'Đang lưu…' : 'Lưu yêu cầu chỉnh sửa'}
+            </Button>
+          </div>
+        )}
+
         <div className="mt-6 text-center">
-          <Button variant="outline" onClick={onAgain}>
-            Chọn lại với tên khác
-          </Button>
+          <Button variant="outline" onClick={onAgain}>Chọn lại với tên khác</Button>
         </div>
       </div>
     </div>
