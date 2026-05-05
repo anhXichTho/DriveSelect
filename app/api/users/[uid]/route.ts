@@ -11,6 +11,7 @@ export async function PATCH(
 ) {
   const auth = await verifyAdminRequest(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.isOwner) return NextResponse.json({ error: 'Không có quyền' }, { status: 403 });
 
   let body: { disabled?: boolean; password?: string; displayName?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -34,6 +35,7 @@ export async function DELETE(
 ) {
   const auth = await verifyAdminRequest(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.isOwner) return NextResponse.json({ error: 'Không có quyền' }, { status: 403 });
 
   // Không cho xóa chính mình
   if (auth.uid === params.uid) {

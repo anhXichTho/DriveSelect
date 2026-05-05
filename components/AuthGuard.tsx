@@ -6,13 +6,16 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 
+const OWNER_EMAIL = process.env.NEXT_PUBLIC_OWNER_EMAIL ?? '';
+
 interface AuthCtx {
   user: User | null;
   token: string | null;
   loading: boolean;
+  isOwner: boolean;
 }
 
-const Ctx = createContext<AuthCtx>({ user: null, token: null, loading: true });
+const Ctx = createContext<AuthCtx>({ user: null, token: null, loading: true, isOwner: false });
 
 export function useAuth() {
   return useContext(Ctx);
@@ -62,5 +65,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user && pathname !== '/login') return null;
 
-  return <Ctx.Provider value={{ user, token, loading }}>{children}</Ctx.Provider>;
+  const isOwner = !!OWNER_EMAIL && user?.email === OWNER_EMAIL;
+
+  return <Ctx.Provider value={{ user, token, loading, isOwner }}>{children}</Ctx.Provider>;
 }

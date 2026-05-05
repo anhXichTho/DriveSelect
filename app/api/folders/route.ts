@@ -10,15 +10,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const auth = await verifyAdminRequest(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
-  }
+  if (!auth.ok) return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
 
   const snap = await adminDb.collection('folders').orderBy('createdAt', 'desc').get();
-  const folders = snap.docs
-    .map(folderFromDoc)
-    .filter((f): f is NonNullable<typeof f> => f !== null)
-    .map(serializeFolder);
+  const all = snap.docs.map(folderFromDoc).filter((f): f is NonNullable<typeof f> => f !== null);
+  const folders = (auth.isOwner ? all : all.filter((f) => f.createdByUid === auth.uid)).map(serializeFolder);
 
   return NextResponse.json({ folders });
 }
@@ -54,6 +50,7 @@ export async function POST(req: NextRequest) {
     driveUrl,
     folderId,
     createdAt: FieldValue.serverTimestamp(),
+    createdByUid: auth.uid ?? '',
   });
 
   const doc = await ref.get();

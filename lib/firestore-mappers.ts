@@ -28,6 +28,7 @@ export function folderFromDoc(doc: DocumentSnapshot): Folder | null {
     driveUrl: data.driveUrl ?? '',
     folderId: data.folderId ?? '',
     createdAt: toDate(data.createdAt),
+    createdByUid: data.createdByUid ?? '',
   };
 }
 
@@ -49,6 +50,7 @@ export function sessionFromDoc(doc: DocumentSnapshot): Session | null {
     selectedFiles: selected,
     completedAt: toDateOrNull(data.completedAt),
     createdAt: toDate(data.createdAt),
+    createdByUid: data.createdByUid ?? '',
   };
 }
 

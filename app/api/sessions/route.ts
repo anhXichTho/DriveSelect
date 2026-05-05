@@ -10,15 +10,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const auth = await verifyAdminRequest(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
-  }
+  if (!auth.ok) return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 });
 
   const snap = await adminDb.collection('sessions').orderBy('createdAt', 'desc').get();
-  const sessions = snap.docs
-    .map(sessionFromDoc)
-    .filter((s): s is NonNullable<typeof s> => s !== null)
-    .map(serializeSession);
+  const all = snap.docs.map(sessionFromDoc).filter((s): s is NonNullable<typeof s> => s !== null);
+  const sessions = (auth.isOwner ? all : all.filter((s) => s.createdByUid === auth.uid)).map(serializeSession);
 
   return NextResponse.json({ sessions });
 }
@@ -54,6 +50,7 @@ export async function POST(req: NextRequest) {
     selectedFiles: [],
     completedAt: null,
     createdAt: FieldValue.serverTimestamp(),
+    createdByUid: auth.uid ?? '',
   });
 
   const created = await adminDb.collection('sessions').doc(sessionId).get();

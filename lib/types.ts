@@ -4,6 +4,7 @@ export interface Folder {
   driveUrl: string;
   folderId: string;
   createdAt: Date;
+  createdByUid: string;
 }
 
 export interface DriveImage {
@@ -29,6 +30,7 @@ export interface Session {
   selectedFiles: SelectedFile[];
   completedAt: Date | null;
   createdAt: Date;
+  createdByUid: string;
 }
 
 export interface Submission {

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export function AdminNav() {
-  const { user } = useAuth();
+  const { user, isOwner } = useAuth();
   const pathname = usePathname();
 
   const navLink = (href: string, label: string) => (
@@ -39,14 +39,16 @@ export function AdminNav() {
           </Link>
           <nav className="hidden items-center gap-4 sm:flex">
             {navLink('/admin', 'Dashboard')}
-            {navLink('/admin/users', 'Người dùng')}
+            {isOwner && navLink('/admin/users', 'Người dùng')}
           </nav>
         </div>
         <div className="flex items-center gap-2">
           {/* Mobile nav */}
-          <Link href="/admin/users" className="sm:hidden p-2 text-muted-foreground hover:text-foreground">
-            <Users className="h-4 w-4" />
-          </Link>
+          {isOwner && (
+            <Link href="/admin/users" className="sm:hidden p-2 text-muted-foreground hover:text-foreground">
+              <Users className="h-4 w-4" />
+            </Link>
+          )}
           {user?.email && (
             <span className="hidden text-xs text-muted-foreground sm:inline">{user.email}</span>
           )}

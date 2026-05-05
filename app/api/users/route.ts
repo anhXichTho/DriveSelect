@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const auth = await verifyAdminRequest(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.isOwner) return NextResponse.json({ error: 'Không có quyền' }, { status: 403 });
 
   const list = await adminAuth.listUsers(1000);
   const users = list.users.map((u) => ({
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await verifyAdminRequest(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.isOwner) return NextResponse.json({ error: 'Không có quyền' }, { status: 403 });
 
   let body: { email?: string; password?: string; displayName?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
