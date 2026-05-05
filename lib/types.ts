@@ -45,3 +45,18 @@ export interface Submission {
 export interface SessionWithFolder extends Session {
   folder: Folder | null;
 }
+
+export interface ProfileImage {
+  fileId: string;
+  fileName: string;
+  thumbnailLink: string;
+  folderId: string;
+  folderName: string;
+}
+
+export interface Profile {
+  uid: string;
+  displayName: string;
+  images: ProfileImage[];
+  updatedAt: Date | null;
+}

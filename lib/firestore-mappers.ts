@@ -1,4 +1,4 @@
-import type { Folder, Session, SelectedFile, Submission } from './types';
+import type { Folder, Session, SelectedFile, Submission, Profile, ProfileImage } from './types';
 import type { DocumentSnapshot, Timestamp } from 'firebase-admin/firestore';
 
 function toDate(v: unknown): Date {
@@ -95,4 +95,31 @@ export function serializeSubmission(s: Submission) {
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt ? s.updatedAt.toISOString() : null,
   };
+}
+
+export function profileFromDoc(doc: DocumentSnapshot): Profile | null {
+  const data = doc.data();
+  if (!data) return null;
+  const images: ProfileImage[] = Array.isArray(data.images)
+    ? data.images.map((img: unknown) => {
+        const o = (img as Record<string, string>) ?? {};
+        return {
+          fileId: o.fileId ?? '',
+          fileName: o.fileName ?? '',
+          thumbnailLink: o.thumbnailLink ?? '',
+          folderId: o.folderId ?? '',
+          folderName: o.folderName ?? '',
+        };
+      })
+    : [];
+  return {
+    uid: (data.uid as string) ?? doc.id,
+    displayName: (data.displayName as string) ?? '',
+    images,
+    updatedAt: toDateOrNull(data.updatedAt),
+  };
+}
+
+export function serializeProfile(p: Profile) {
+  return { ...p, updatedAt: p.updatedAt ? p.updatedAt.toISOString() : null };
 }

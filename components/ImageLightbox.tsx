@@ -12,13 +12,14 @@ interface Props {
   onToggle: (id: string) => void;
   onChangeIndex: (index: number) => void;
   onClose: () => void;
+  readonly?: boolean;
 }
 
 function dist(t1: React.Touch, t2: React.Touch) {
   return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
 }
 
-export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onChangeIndex, onClose }: Props) {
+export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onChangeIndex, onClose, readonly = false }: Props) {
   const image = images[currentIndex];
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < images.length - 1;
@@ -283,7 +284,7 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
       )}
 
       {/* Select button */}
-      {zoom <= 1 && (
+      {!readonly && zoom <= 1 && (
         <div
           className="absolute bottom-6 left-0 right-0 flex justify-center"
           onClick={(e) => e.stopPropagation()}

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { LogOut, Users } from 'lucide-react';
+import { LogOut, Users, LayoutGrid } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useAuth } from './AuthGuard';
 import { Button } from '@/components/ui/button';
@@ -39,11 +39,15 @@ export function AdminNav() {
           </Link>
           <nav className="hidden items-center gap-4 sm:flex">
             {navLink('/admin', 'Dashboard')}
+            {navLink('/admin/profile', 'Portfolio')}
             {isOwner && navLink('/admin/users', 'Người dùng')}
           </nav>
         </div>
         <div className="flex items-center gap-2">
           {/* Mobile nav */}
+          <Link href="/admin/profile" className="sm:hidden p-2 text-muted-foreground hover:text-foreground">
+            <LayoutGrid className="h-4 w-4" />
+          </Link>
           {isOwner && (
             <Link href="/admin/users" className="sm:hidden p-2 text-muted-foreground hover:text-foreground">
               <Users className="h-4 w-4" />
