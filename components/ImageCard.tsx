@@ -1,27 +1,21 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import { Check, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DriveImage } from '@/lib/types';
-import { ImageLightbox } from './ImageLightbox';
 
 interface Props {
   image: DriveImage;
   selected: boolean;
   onToggle: (id: string) => void;
+  onOpenLightbox: () => void;
 }
 
-export function ImageCard({ image, selected, onToggle }: Props) {
-  const [lightbox, setLightbox] = useState(false);
-
+export function ImageCard({ image, selected, onToggle, onOpenLightbox }: Props) {
   return (
     <div className="flex flex-col gap-1">
-      <p
-        className="truncate px-0.5 text-xs font-medium text-foreground"
-        title={image.name}
-      >
+      <p className="truncate px-0.5 text-xs font-medium text-foreground" title={image.name}>
         {image.name}
       </p>
 
@@ -49,42 +43,25 @@ export function ImageCard({ image, selected, onToggle }: Props) {
             unoptimized
           />
 
-          <div
-            className={cn(
-              'absolute inset-0 transition-colors duration-150',
-              selected ? 'bg-brand-500/20' : 'bg-transparent',
-            )}
-          />
+          <div className={cn('absolute inset-0 transition-colors duration-150', selected ? 'bg-brand-500/20' : 'bg-transparent')} />
 
-          <div
-            className={cn(
-              'absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-150',
-              selected
-                ? 'bg-brand-500 border-white scale-100'
-                : 'bg-white/40 border-white/80 scale-90 backdrop-blur-sm',
-            )}
-          >
+          <div className={cn(
+            'absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-150',
+            selected ? 'bg-brand-500 border-white scale-100' : 'bg-white/40 border-white/80 scale-90 backdrop-blur-sm',
+          )}>
             {selected && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
           </div>
         </button>
 
         <button
           type="button"
-          onClick={() => setLightbox(true)}
+          onClick={onOpenLightbox}
           aria-label={`Xem ảnh ${image.name}`}
           className="absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 transition-colors"
         >
           <Eye className="h-3.5 w-3.5" />
         </button>
       </div>
-
-      {lightbox && (
-        <ImageLightbox
-          src={`/api/download/${image.id}?preview=1&name=${encodeURIComponent(image.name)}`}
-          name={image.name}
-          onClose={() => setLightbox(false)}
-        />
-      )}
     </div>
   );
 }

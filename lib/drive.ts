@@ -43,18 +43,25 @@ export async function getFolderImages(folderId: string): Promise<DriveImage[]> {
   if (!folderId) throw new Error('folderId is required');
   const drive = getDriveClient();
 
-  const res = await drive.files.list({
-    q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
-    fields: 'files(id,name,thumbnailLink,webViewLink,mimeType)',
-    pageSize: 200,
-    orderBy: 'name',
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
+  type GFile = { id?: string | null; name?: string | null; thumbnailLink?: string | null; webViewLink?: string | null; mimeType?: string | null };
+  const allFiles: GFile[] = [];
+  let pageToken: string | undefined;
 
-  const files = res.data.files ?? [];
+  do {
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
+      fields: 'nextPageToken,files(id,name,thumbnailLink,webViewLink,mimeType)',
+      pageSize: 1000,
+      orderBy: 'name',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const f of res.data.files ?? []) allFiles.push(f as GFile);
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
 
-  return files
+  return allFiles
     .filter((f) => f.id && f.thumbnailLink)
     .map((f) => ({
       id: f.id!,

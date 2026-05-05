@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const files = body.files ?? [];
   if (files.length === 0) return NextResponse.json({ error: 'Không có file nào' }, { status: 400 });
-  if (files.length > 200) return NextResponse.json({ error: 'Tối đa 200 file' }, { status: 400 });
+  if (files.length > 1000) return NextResponse.json({ error: 'Tối đa 1000 file' }, { status: 400 });
 
   const zipName = (body.zipName ?? 'anh-da-chon').replace(/[^a-zA-Z0-9\-_\s]/g, '').trim() || 'anh-da-chon';
 

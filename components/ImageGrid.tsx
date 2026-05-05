@@ -5,11 +5,15 @@ import { toast } from 'sonner';
 import { CheckCircle2, ImageIcon, User, Download } from 'lucide-react';
 import type { DriveImage, SelectedFile } from '@/lib/types';
 import { ImageCard } from './ImageCard';
+import { ImageLightbox } from './ImageLightbox';
 import { SubmitBar } from './SubmitBar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+
+const PAGE_SIZE = 24;
 
 interface Props {
   sessionId: string;
@@ -26,8 +30,17 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [submittedFiles, setSubmittedFiles] = useState<SelectedFile[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const title = label || folderName;
+  const totalPages = images ? Math.ceil(images.length / PAGE_SIZE) : 0;
+  const pagedImages = images ? images.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE) : [];
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     if (step !== 'select') return;
@@ -172,10 +185,43 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
         )}
 
         {!error && images && images.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {images.map((img) => (
-              <ImageCard key={img.id} image={img} selected={selectedIds.has(img.id)} onToggle={toggle} />
-            ))}
+          <div className="flex gap-2 sm:gap-3">
+            {/* Vertical pagination sidebar */}
+            {totalPages > 1 && (
+              <nav
+                aria-label="Phân trang"
+                className="sticky top-4 self-start flex flex-col gap-1 max-h-[calc(100vh-5rem)] overflow-y-auto shrink-0"
+              >
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handlePageChange(i)}
+                    className={cn(
+                      'w-8 h-8 flex items-center justify-center rounded text-xs font-medium transition-colors',
+                      currentPage === i
+                        ? 'bg-brand-500 text-white'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </nav>
+            )}
+
+            {/* Image grid */}
+            <div className="flex-1 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {pagedImages.map((img, localIdx) => (
+                <ImageCard
+                  key={img.id}
+                  image={img}
+                  selected={selectedIds.has(img.id)}
+                  onToggle={toggle}
+                  onOpenLightbox={() => setLightboxIndex(currentPage * PAGE_SIZE + localIdx)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </main>
@@ -186,6 +232,17 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
         submitting={submitting}
         onSubmit={handleSubmit}
       />
+
+      {lightboxIndex !== null && images && (
+        <ImageLightbox
+          images={images}
+          currentIndex={lightboxIndex}
+          selectedIds={selectedIds}
+          onToggle={toggle}
+          onChangeIndex={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </div>
   );
 }
