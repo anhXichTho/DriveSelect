@@ -36,6 +36,7 @@ export interface Submission {
   submitterName: string;
   selectedFiles: SelectedFile[];
   createdAt: Date;
+  updatedAt: Date | null;
 }
 
 export interface SessionWithFolder extends Session {

@@ -79,9 +79,14 @@ export function submissionFromDoc(doc: DocumentSnapshot): Submission | null {
     submitterName: data.submitterName ?? '',
     selectedFiles: selected,
     createdAt: toDate(data.createdAt),
+    updatedAt: toDateOrNull(data.updatedAt),
   };
 }
 
 export function serializeSubmission(s: Submission) {
-  return { ...s, createdAt: s.createdAt.toISOString() };
+  return {
+    ...s,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt ? s.updatedAt.toISOString() : null,
+  };
 }

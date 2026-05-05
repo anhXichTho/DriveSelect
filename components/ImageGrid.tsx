@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, ImageIcon, User, Download } from 'lucide-react';
+import { CheckCircle2, ImageIcon, User, Download, Filter } from 'lucide-react';
 import type { DriveImage, SelectedFile } from '@/lib/types';
 import { ImageCard } from './ImageCard';
 import { ImageLightbox } from './ImageLightbox';
@@ -32,14 +32,25 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   const [submittedFiles, setSubmittedFiles] = useState<SelectedFile[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [isReturning, setIsReturning] = useState(false);
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
 
   const title = label || folderName;
-  const totalPages = images ? Math.ceil(images.length / PAGE_SIZE) : 0;
-  const pagedImages = images ? images.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE) : [];
+  const displayImages = images
+    ? (showOnlySelected ? images.filter((img) => selectedIds.has(img.id)) : images)
+    : [];
+  const totalPages = Math.ceil(displayImages.length / PAGE_SIZE);
+  const pagedImages = displayImages.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const toggleFilter = () => {
+    setShowOnlySelected((v) => !v);
+    setCurrentPage(0);
   };
 
   useEffect(() => {
@@ -67,12 +78,30 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
     });
   }, []);
 
-  const handleStartSelect = () => {
+  const handleStartSelect = async () => {
     if (!submitterName.trim()) {
       toast.error('Vui lòng nhập tên của bạn');
       return;
     }
-    setStep('select');
+    setLookingUp(true);
+    try {
+      const res = await fetch(
+        `/api/sessions/${sessionId}/submissions/lookup?name=${encodeURIComponent(submitterName.trim())}`,
+      );
+      const data = await res.json();
+      if (Array.isArray(data.selectedFiles) && data.selectedFiles.length > 0) {
+        setSelectedIds(new Set<string>(data.selectedFiles.map((f: SelectedFile) => f.id)));
+        setIsReturning(true);
+        toast.success(`Đã khôi phục ${data.selectedFiles.length} ảnh bạn đã chọn trước đó`);
+      } else {
+        setIsReturning(false);
+      }
+    } catch {
+      // bỏ qua lỗi, vẫn cho vào chọn
+    } finally {
+      setLookingUp(false);
+      setStep('select');
+    }
   };
 
   const handleSubmit = async () => {
@@ -110,6 +139,7 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
     setSubmittedFiles([]);
     setStep('name');
     setSubmitterName('');
+    setIsReturning(false);
   }} />;
 
   if (step === 'name') return (
@@ -134,8 +164,8 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
               autoFocus
             />
           </div>
-          <Button className="mt-4 w-full" size="lg" onClick={handleStartSelect}>
-            Bắt đầu chọn ảnh
+          <Button className="mt-4 w-full" size="lg" onClick={handleStartSelect} disabled={lookingUp}>
+            {lookingUp ? 'Đang kiểm tra…' : 'Bắt đầu chọn ảnh'}
           </Button>
         </div>
       </div>
@@ -146,15 +176,37 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border bg-white px-4 py-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-lg font-semibold sm:text-xl">{title}</h1>
             <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
               {submitterName}
             </span>
+            {isReturning && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                Đang chỉnh sửa
+              </span>
+            )}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Chạm vào ảnh để chọn, nhấn <b>Hoàn thành</b> khi xong.
-          </p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Chạm vào ảnh để chọn, nhấn <b>Hoàn thành</b> khi xong.
+            </p>
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={toggleFilter}
+                className={cn(
+                  'shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  showOnlySelected
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-brand-100 hover:text-brand-700',
+                )}
+              >
+                <Filter className="h-3 w-3" />
+                {showOnlySelected ? `Đã chọn (${selectedIds.size})` : `Lọc đã chọn (${selectedIds.size})`}
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -184,7 +236,17 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
           </div>
         )}
 
-        {!error && images && images.length > 0 && (
+        {!error && images && images.length > 0 && displayImages.length === 0 && showOnlySelected && (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+            <Filter className="h-12 w-12 text-muted-foreground" />
+            <p className="mt-4 text-base font-medium">Chưa chọn ảnh nào</p>
+            <button type="button" onClick={toggleFilter} className="mt-3 text-sm text-brand-600 hover:underline">
+              Xem tất cả ảnh
+            </button>
+          </div>
+        )}
+
+        {!error && images && images.length > 0 && displayImages.length > 0 && (
           <div className="flex gap-2 sm:gap-3">
             {/* Vertical pagination sidebar */}
             {totalPages > 1 && (
@@ -212,15 +274,18 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
 
             {/* Image grid */}
             <div className="flex-1 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {pagedImages.map((img, localIdx) => (
-                <ImageCard
-                  key={img.id}
-                  image={img}
-                  selected={selectedIds.has(img.id)}
-                  onToggle={toggle}
-                  onOpenLightbox={() => setLightboxIndex(currentPage * PAGE_SIZE + localIdx)}
-                />
-              ))}
+              {pagedImages.map((img, localIdx) => {
+                const globalIdx = images.findIndex((i) => i.id === img.id);
+                return (
+                  <ImageCard
+                    key={img.id}
+                    image={img}
+                    selected={selectedIds.has(img.id)}
+                    onToggle={toggle}
+                    onOpenLightbox={() => setLightboxIndex(globalIdx)}
+                  />
+                );
+              })}
             </div>
           </div>
         )}

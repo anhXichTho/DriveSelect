@@ -33,24 +33,41 @@ export async function POST(
   const session = sessionFromDoc(sessionSnap);
   if (!session) return NextResponse.json({ error: 'Link không hợp lệ' }, { status: 404 });
 
-  // Create submission sub-document
-  const subRef = await adminDb
+  // Upsert: tìm submission cũ cùng tên, nếu có thì update thay vì tạo mới
+  const existingSnap = await adminDb
     .collection('sessions').doc(sessionId)
-    .collection('submissions').add({
-      sessionId,
-      submitterName,
-      selectedFiles,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    .collection('submissions')
+    .where('submitterName', '==', submitterName)
+    .limit(1)
+    .get();
 
-  // Update session: mark active + increment count
+  let subDoc;
+  const isUpdate = !existingSnap.empty;
+
+  if (isUpdate) {
+    const ref = existingSnap.docs[0].ref;
+    await ref.update({ selectedFiles, updatedAt: FieldValue.serverTimestamp() });
+    subDoc = await ref.get();
+  } else {
+    const ref = await adminDb
+      .collection('sessions').doc(sessionId)
+      .collection('submissions').add({
+        sessionId,
+        submitterName,
+        selectedFiles,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: null,
+      });
+    subDoc = await ref.get();
+  }
+
+  // Update session: mark active, cập nhật lastSubmittedAt, chỉ tăng count khi tạo mới
   await adminDb.collection('sessions').doc(sessionId).update({
     status: 'active',
-    submissionCount: FieldValue.increment(1),
     lastSubmittedAt: FieldValue.serverTimestamp(),
+    ...(isUpdate ? {} : { submissionCount: FieldValue.increment(1) }),
   });
 
-  const subDoc = await subRef.get();
   const submission = submissionFromDoc(subDoc);
 
   // Send email async
