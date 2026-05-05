@@ -194,18 +194,32 @@ function ThankYou({ name, files, onAgain }: { name: string; files: SelectedFile[
   const [downloading, setDownloading] = useState(false);
 
   const downloadAll = async () => {
+    if (downloading) return;
     setDownloading(true);
-    for (const f of files) {
-      const url = `/api/download/${f.id}?name=${encodeURIComponent(f.name)}`;
+    try {
+      const res = await fetch('/api/download/zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files,
+          zipName: `anh-da-chon-${name.replace(/\s+/g, '-')}`,
+        }),
+      });
+      if (!res.ok) throw new Error('Tạo ZIP thất bại');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = f.name;
+      a.download = `anh-da-chon-${name}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      await new Promise((r) => setTimeout(r, 400));
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Tải thất bại');
+    } finally {
+      setDownloading(false);
     }
-    setDownloading(false);
   };
 
   return (

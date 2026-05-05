@@ -54,11 +54,12 @@ export async function GET(
 
     const buffer = Buffer.concat(chunks);
     const fileName = encodeURIComponent(name);
+    const isPreview = req.nextUrl.searchParams.get('preview') === '1';
 
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': mimeType,
-        'Content-Disposition': `attachment; filename*=UTF-8''${fileName}`,
+        'Content-Disposition': isPreview ? 'inline' : `attachment; filename*=UTF-8''${fileName}`,
         'Content-Length': String(buffer.byteLength),
         'Cache-Control': 'private, max-age=3600',
       },
