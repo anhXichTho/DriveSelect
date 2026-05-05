@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, ImageIcon, User } from 'lucide-react';
-import type { DriveImage } from '@/lib/types';
+import { CheckCircle2, ImageIcon, User, Download } from 'lucide-react';
+import type { DriveImage, SelectedFile } from '@/lib/types';
 import { ImageCard } from './ImageCard';
 import { SubmitBar } from './SubmitBar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,7 +25,7 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const [submitCount, setSubmitCount] = useState(0);
+  const [submittedFiles, setSubmittedFiles] = useState<SelectedFile[]>([]);
 
   const title = label || folderName;
 
@@ -80,7 +80,10 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || 'Gửi không thành công');
       }
-      setSubmitCount(selectedIds.size);
+      const files = images
+        .filter((img) => selectedIds.has(img.id))
+        .map((img) => ({ id: img.id, name: img.name }));
+      setSubmittedFiles(files);
       setStep('done');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Có lỗi xảy ra');
@@ -89,8 +92,9 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
     }
   };
 
-  if (step === 'done') return <ThankYou name={submitterName} count={submitCount} onAgain={() => {
+  if (step === 'done') return <ThankYou name={submitterName} files={submittedFiles} onAgain={() => {
     setSelectedIds(new Set());
+    setSubmittedFiles([]);
     setStep('name');
     setSubmitterName('');
   }} />;
@@ -186,19 +190,75 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   );
 }
 
-function ThankYou({ name, count, onAgain }: { name: string; count: number; onAgain: () => void }) {
+function ThankYou({ name, files, onAgain }: { name: string; files: SelectedFile[]; onAgain: () => void }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadAll = async () => {
+    setDownloading(true);
+    for (const f of files) {
+      const url = `/api/download/${f.id}?name=${encodeURIComponent(f.name)}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    setDownloading(false);
+  };
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
-      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
-        <CheckCircle2 className="h-12 w-12 text-emerald-600" strokeWidth={2} />
+    <div className="min-h-screen bg-muted/20 p-4 sm:p-6">
+      <div className="mx-auto max-w-lg pt-10">
+        <div className="mb-6 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle2 className="h-9 w-9 text-emerald-600" strokeWidth={2} />
+          </div>
+          <h1 className="mt-4 text-2xl font-bold">Cảm ơn, {name}!</h1>
+          <p className="mt-1 text-muted-foreground">
+            Đã nhận <b>{files.length}</b> ảnh bạn chọn.
+          </p>
+        </div>
+
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Ảnh đã chọn ({files.length})
+          </h2>
+          <Button
+            size="sm"
+            onClick={downloadAll}
+            disabled={downloading}
+            className="shrink-0"
+          >
+            <Download className="h-4 w-4" />
+            {downloading ? 'Đang tải…' : 'Tải tất cả'}
+          </Button>
+        </div>
+
+        <div className="rounded-xl border border-border bg-white divide-y divide-border overflow-hidden">
+          {files.map((f, i) => (
+            <div key={f.id} className="flex items-center gap-3 px-4 py-2.5">
+              <span className="w-6 shrink-0 text-xs text-muted-foreground text-right">{i + 1}</span>
+              <span className="flex-1 truncate text-sm">{f.name}</span>
+              <a
+                href={`/api/download/${f.id}?name=${encodeURIComponent(f.name)}`}
+                download={f.name}
+                className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-brand-600 transition-colors"
+                title="Tải về"
+              >
+                <Download className="h-4 w-4" />
+              </a>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 text-center">
+          <Button variant="outline" onClick={onAgain}>
+            Chọn lại với tên khác
+          </Button>
+        </div>
       </div>
-      <h1 className="mt-6 text-2xl font-bold">Cảm ơn, {name}!</h1>
-      <p className="mt-2 max-w-sm text-muted-foreground">
-        Bạn đã chọn <b>{count}</b> ảnh. Chúng tôi đã nhận được lựa chọn của bạn.
-      </p>
-      <Button variant="outline" className="mt-8" onClick={onAgain}>
-        Chọn lại với tên khác
-      </Button>
     </div>
   );
 }
