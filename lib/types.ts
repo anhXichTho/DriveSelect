@@ -1,0 +1,43 @@
+export interface Folder {
+  id: string;
+  name: string;
+  driveUrl: string;
+  folderId: string;
+  createdAt: Date;
+}
+
+export interface DriveImage {
+  id: string;
+  name: string;
+  thumbnailLink: string;
+  webViewLink: string;
+  mimeType: string;
+}
+
+export interface SelectedFile {
+  id: string;
+  name: string;
+}
+
+export interface Session {
+  id: string;
+  folderId: string;
+  folderName: string;
+  label: string;
+  status: 'pending' | 'completed';
+  selectedFiles: SelectedFile[];
+  completedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface Submission {
+  id: string;
+  sessionId: string;
+  submitterName: string;
+  selectedFiles: SelectedFile[];
+  createdAt: Date;
+}
+
+export interface SessionWithFolder extends Session {
+  folder: Folder | null;
+}
