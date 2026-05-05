@@ -14,6 +14,10 @@ interface Props {
   onClose: () => void;
 }
 
+function dist(t1: React.Touch, t2: React.Touch) {
+  return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+}
+
 export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onChangeIndex, onClose }: Props) {
   const image = images[currentIndex];
   const hasPrev = currentIndex > 0;
@@ -24,11 +28,24 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
   const [isLoading, setIsLoading] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  // mouse drag
   const isDragging = useRef(false);
   const dragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+
+  // touch state
+  const touchRef = useRef({
+    lastDist: 0,
+    baseZoom: 1,
+    lastTap: 0,
+    singleStart: { mx: 0, my: 0, px: 0, py: 0 },
+    swipeStartX: 0,
+    isSwiping: false,
+  });
+
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Reset và load ảnh gốc mỗi khi đổi ảnh
+  // Load ảnh gốc, hiện thumbnail ngay
   useEffect(() => {
     setSrc(image.thumbnailLink);
     setIsLoading(true);
@@ -79,15 +96,15 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
     return () => el.removeEventListener('wheel', handler);
   }, []);
 
+  // Mouse handlers
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (zoom > 1) { resetZoom(); } else { setZoom(2.5); }
+    zoom > 1 ? resetZoom() : setZoom(2.5);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (zoom <= 1) return;
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     isDragging.current = true;
     dragOrigin.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
   };
@@ -102,9 +119,72 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
 
   const handleMouseUp = () => { isDragging.current = false; };
 
+  // Touch handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+
+      // Double-tap zoom
+      const now = Date.now();
+      if (now - touchRef.current.lastTap < 280) {
+        touchRef.current.lastTap = 0;
+        zoom > 1 ? resetZoom() : setZoom(2.5);
+        return;
+      }
+      touchRef.current.lastTap = now;
+
+      // Single-finger pan (when zoomed) or swipe (when not zoomed)
+      touchRef.current.singleStart = { mx: t.clientX, my: t.clientY, px: pan.x, py: pan.y };
+      touchRef.current.swipeStartX = t.clientX;
+      touchRef.current.isSwiping = zoom <= 1;
+    }
+
+    if (e.touches.length === 2) {
+      touchRef.current.lastDist = dist(e.touches[0], e.touches[1]);
+      touchRef.current.baseZoom = zoom;
+      touchRef.current.isSwiping = false;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.touches.length === 2) {
+      const d = dist(e.touches[0], e.touches[1]);
+      const newZoom = Math.max(1, Math.min(6, touchRef.current.baseZoom * (d / touchRef.current.lastDist)));
+      setZoom(newZoom);
+      if (newZoom === 1) setPan({ x: 0, y: 0 });
+      return;
+    }
+
+    if (e.touches.length === 1 && zoom > 1) {
+      const t = e.touches[0];
+      setPan({
+        x: touchRef.current.singleStart.px + (t.clientX - touchRef.current.singleStart.mx),
+        y: touchRef.current.singleStart.py + (t.clientY - touchRef.current.singleStart.my),
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    if (e.touches.length > 0) return;
+
+    // Swipe navigation when not zoomed
+    if (touchRef.current.isSwiping) {
+      const dx = (e.changedTouches[0]?.clientX ?? 0) - touchRef.current.swipeStartX;
+      if (dx < -50 && hasNext) navigate(1);
+      else if (dx > 50 && hasPrev) navigate(-1);
+    }
+    touchRef.current.isSwiping = false;
+  };
+
   const imgStyle: React.CSSProperties = {
     maxHeight: '80vh',
-    maxWidth: '85vw',
+    maxWidth: '88vw',
     objectFit: 'contain',
     display: 'block',
     transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -112,6 +192,7 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
     transition: isDragging.current ? 'none' : 'transform 0.15s ease',
     cursor: zoom > 1 ? 'grab' : 'zoom-in',
     userSelect: 'none',
+    touchAction: 'none',
     borderRadius: '8px',
     boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.7), 0 32px 80px rgba(0,0,0,0.5)',
   };
@@ -133,7 +214,7 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
       >
         <p className="text-sm text-white/80 truncate max-w-[50%]">{image.name}</p>
         <div className="flex items-center gap-2 shrink-0">
-          {isLoading && <span className="text-xs text-white/40">Đang tải ảnh gốc…</span>}
+          {isLoading && <span className="text-xs text-white/40">Đang tải…</span>}
           {!isLoading && zoom > 1 && (
             <button
               type="button"
@@ -184,6 +265,9 @@ export function ImageLightbox({ images, currentIndex, selectedIds, onToggle, onC
         onDoubleClick={handleDoubleClick}
         onMouseDown={handleMouseDown}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
 
       {/* Next */}
