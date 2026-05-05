@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Trash2, ShieldOff, ShieldCheck, Loader2, UserCircle2 } from 'lucide-react';
+import {
+  Plus, Trash2, ShieldOff, ShieldCheck, Loader2,
+  UserCircle2, Pencil, X, Check,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/AuthGuard';
 import { AdminNav } from '@/components/AdminNav';
@@ -30,6 +33,9 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editingUid, setEditingUid] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -44,6 +50,39 @@ export default function UsersPage() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  const startEdit = (u: AppUser) => {
+    setEditingUid(u.uid);
+    setEditName(u.displayName);
+  };
+
+  const cancelEdit = () => {
+    setEditingUid(null);
+    setEditName('');
+  };
+
+  const handleSaveName = async (uid: string) => {
+    if (!token) return;
+    setEditBusy(true);
+    try {
+      const res = await fetch(`/api/users/${uid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ displayName: editName.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success('Đã cập nhật tên');
+      setUsers((prev) => prev
+        ? prev.map((u) => u.uid === uid ? { ...u, displayName: editName.trim() } : u)
+        : prev,
+      );
+      cancelEdit();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Lỗi');
+    } finally {
+      setEditBusy(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!token) return;
@@ -152,48 +191,88 @@ export default function UsersPage() {
           <div className="space-y-2">
             {users.map((u) => (
               <Card key={u.uid}>
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-sm font-semibold">
-                    {(u.displayName || u.email).charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {u.displayName || u.email}
-                      </span>
-                      {u.disabled && <Badge variant="outline" className="text-xs text-destructive border-destructive/40">Bị khóa</Badge>}
-                      {me?.uid === u.uid && <Badge variant="default" className="text-xs">Bạn</Badge>}
+                <CardContent className="p-4">
+                  {editingUid === u.uid ? (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-sm font-semibold">
+                        {(editName || u.email).charAt(0).toUpperCase()}
+                      </div>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveName(u.uid);
+                          if (e.key === 'Escape') cancelEdit();
+                        }}
+                        disabled={editBusy}
+                        className="h-9 text-sm flex-1"
+                        placeholder="Tên hiển thị"
+                        autoFocus
+                      />
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="icon" className="h-9 w-9" onClick={() => handleSaveName(u.uid)} disabled={editBusy}>
+                          {editBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button size="icon" variant="outline" className="h-9 w-9" onClick={cancelEdit} disabled={editBusy}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{u.email}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">
-                      Tạo {formatDateTime(new Date(u.createdAt))}
-                      {u.lastSignIn && ` · Đăng nhập lần cuối ${formatDateTime(new Date(u.lastSignIn))}`}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    {me?.uid !== u.uid && (
-                      <>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-sm font-semibold">
+                        {(u.displayName || u.email).charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="truncate text-sm font-medium">
+                            {u.displayName || u.email}
+                          </span>
+                          {u.disabled && (
+                            <Badge variant="outline" className="text-xs text-destructive border-destructive/40">Bị khóa</Badge>
+                          )}
+                          {me?.uid === u.uid && (
+                            <Badge variant="default" className="text-xs">Bạn</Badge>
+                          )}
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground">{u.email}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          Tạo {formatDateTime(new Date(u.createdAt))}
+                          {u.lastSignIn && ` · Đăng nhập ${formatDateTime(new Date(u.lastSignIn))}`}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
                         <Button
                           variant="ghost" size="icon"
-                          onClick={() => handleToggle(u.uid, u.disabled)}
-                          title={u.disabled ? 'Mở khóa' : 'Khóa tài khoản'}
-                          className="text-muted-foreground hover:text-amber-600"
+                          onClick={() => startEdit(u)}
+                          title="Đổi tên"
+                          className="text-muted-foreground hover:text-foreground"
                         >
-                          {u.disabled
-                            ? <ShieldCheck className="h-4 w-4" />
-                            : <ShieldOff className="h-4 w-4" />}
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost" size="icon"
-                          onClick={() => handleDelete(u.uid, u.email)}
-                          title="Xóa tài khoản"
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                        {me?.uid !== u.uid && (
+                          <>
+                            <Button
+                              variant="ghost" size="icon"
+                              onClick={() => handleToggle(u.uid, u.disabled)}
+                              title={u.disabled ? 'Mở khóa' : 'Khóa tài khoản'}
+                              className="text-muted-foreground hover:text-amber-600"
+                            >
+                              {u.disabled ? <ShieldCheck className="h-4 w-4" /> : <ShieldOff className="h-4 w-4" />}
+                            </Button>
+                            <Button
+                              variant="ghost" size="icon"
+                              onClick={() => handleDelete(u.uid, u.email)}
+                              title="Xóa tài khoản"
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

@@ -48,3 +48,4 @@ export const adminAuth = new Proxy({} as Auth, {
     return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
   },
 }) as Auth;
+

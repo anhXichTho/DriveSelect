@@ -65,15 +65,8 @@ export default function PublicPortfolioPage({ params }: { params: { uid: string 
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
       <header className="border-b border-border bg-white px-4 py-5 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 mb-3">
-          <span className="text-xl font-bold text-white">
-            {profile.displayName.charAt(0).toUpperCase() || 'P'}
-          </span>
-        </div>
         <h1 className="text-xl font-bold">{profile.displayName}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {profile.images.length} ảnh mẫu
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{profile.images.length} ảnh mẫu</p>
       </header>
 
       {/* Gallery */}
