@@ -332,11 +332,12 @@ function ThankYou({
   onAgain: () => void;
 }) {
   const [downloading, setDownloading] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const downloadAll = async () => {
+  const createZip = async () => {
     if (downloading) return;
     setDownloading(true);
     try {
@@ -356,6 +357,29 @@ function ThankYou({
       toast.error(e instanceof Error ? e.message : 'Tải thất bại');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const downloadAllFiles = async () => {
+    if (downloadingAll) return;
+    setDownloadingAll(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = `/api/download/${f.id}?name=${encodeURIComponent(f.name)}`;
+            a.download = f.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            resolve();
+          }, i * 300);
+        });
+      }
+    } finally {
+      setDownloadingAll(false);
     }
   };
 
@@ -402,10 +426,16 @@ function ThankYou({
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Ảnh đã chọn ({files.length})
           </h2>
-          <Button size="sm" onClick={downloadAll} disabled={downloading} className="shrink-0">
-            <Download className="h-4 w-4" />
-            {downloading ? 'Đang tải…' : 'Tải tất cả'}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={downloadAllFiles} disabled={downloadingAll}>
+              <Download className="h-4 w-4" />
+              {downloadingAll ? 'Đang tải…' : 'Tải toàn bộ'}
+            </Button>
+            <Button size="sm" onClick={createZip} disabled={downloading}>
+              <Download className="h-4 w-4" />
+              {downloading ? 'Đang tạo…' : 'Tạo zip'}
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-white divide-y divide-border overflow-hidden">
