@@ -2,7 +2,7 @@
 
 import { useEffect, useState, createContext, useContext } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onIdTokenChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 
@@ -29,7 +29,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    const unsub = onIdTokenChanged(auth, async (u) => {
       setUser(u);
       if (u) {
         try {
