@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 100;
 
+type SubmittedFile = { id: string; name: string; thumbnailLink: string; note?: string };
+
 interface Props {
   sessionId: string;
   folderId: string;
@@ -29,7 +31,7 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const [submittedFiles, setSubmittedFiles] = useState<SelectedFile[]>([]);
+  const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
@@ -126,7 +128,7 @@ export function ImageGrid({ sessionId, folderId, folderName, label }: Props) {
       const data = await res.json();
       const files = images
         .filter((img) => selectedIds.has(img.id))
-        .map((img) => ({ id: img.id, name: img.name }));
+        .map((img) => ({ id: img.id, name: img.name, thumbnailLink: img.thumbnailLink }));
       setSubmittedFiles(files);
       setSubmissionId(data.submission?.id ?? null);
       setStep('done');
@@ -326,7 +328,7 @@ function ThankYou({
   name, files, sessionId, submissionId, onAgain,
 }: {
   name: string;
-  files: SelectedFile[];
+  files: SubmittedFile[];
   sessionId: string;
   submissionId: string | null;
   onAgain: () => void;
@@ -440,26 +442,35 @@ function ThankYou({
 
         <div className="rounded-xl border border-border bg-white divide-y divide-border overflow-hidden">
           {files.map((f, i) => (
-            <div key={f.id} className="px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span className="w-6 shrink-0 text-xs text-muted-foreground text-right">{i + 1}</span>
-                <span className="flex-1 truncate text-sm font-medium">{f.name}</span>
-                <a
-                  href={`/api/download/${f.id}?name=${encodeURIComponent(f.name)}`}
-                  download={f.name}
-                  className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-brand-600 transition-colors"
-                  title="Tải về"
-                >
-                  <Download className="h-4 w-4" />
-                </a>
+            <div key={f.id} className="p-3 flex gap-3">
+              {/* Thumbnail */}
+              <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-muted">
+                <img
+                  src={f.thumbnailLink}
+                  alt={f.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
-              <div className="mt-2 pl-9">
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-muted-foreground pt-0.5 shrink-0">{i + 1}.</span>
+                  <span className="flex-1 truncate text-sm font-medium leading-snug">{f.name}</span>
+                  <a
+                    href={`/api/download/${f.id}?name=${encodeURIComponent(f.name)}`}
+                    download={f.name}
+                    className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-brand-600 transition-colors"
+                    title="Tải về"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                </div>
                 <textarea
                   rows={2}
                   value={notes[f.id] ?? ''}
                   onChange={(e) => { setNotes((prev) => ({ ...prev, [f.id]: e.target.value })); setSaved(false); }}
-                  placeholder="Yêu cầu chỉnh sửa cho ảnh này… (tùy chọn)"
-                  className="w-full resize-none rounded-md border border-border bg-muted/40 px-3 py-2 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                  placeholder="Yêu cầu chỉnh sửa… (tùy chọn)"
+                  className="mt-1.5 w-full resize-none rounded-md border border-border bg-muted/40 px-3 py-2 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                 />
               </div>
             </div>
